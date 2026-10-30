@@ -11,7 +11,7 @@ import java.util.zip.ZipOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 class NativeBuilderPlugin : KigPlugin {
-    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.0")
+    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.1")
     private lateinit var environment: PluginEnvironment
     private lateinit var projects: NativeProjects
     private lateinit var toolchains: BuilderToolchains
