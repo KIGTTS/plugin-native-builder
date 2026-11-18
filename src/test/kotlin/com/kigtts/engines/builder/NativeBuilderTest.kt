@@ -16,6 +16,7 @@ import java.util.zip.ZipFile
 /** Real desktop compiler fixtures. They intentionally do not claim Android/ART compatibility. */
 class NativeBuilderTest {
     @get:Rule val temp = TemporaryFolder()
+    private val text = BuilderText(PluginStrings.fromAssets(File("src/main/assets")), "ja")
     private fun fixture(storage: PluginStorage): BuilderToolchain {
         val directory = storage.directory("test-toolchain")
         val jars = listOf(File(System.getProperty("builder.androidJar")),
@@ -36,7 +37,7 @@ class NativeBuilderTest {
     }
     private suspend fun compileAndVerify(language: String) {
         val storage = PluginStorage(temp.newFolder())
-        val root = NativeTemplates.create(storage, "示例插件", language)
+        val root = NativeTemplates.create(storage, "示例插件", language, text)
         val projects = NativeProjects(storage)
         val project = projects.confirm(projects.stage(root))
         val toolchain = fixture(storage)
@@ -44,7 +45,7 @@ class NativeBuilderTest {
         val stages = mutableListOf<String>()
         val dex = NativeCompiler(javaClass.classLoader!!, toolchain).compile(project, output, stages::add)
         assertTrue(dex.resolve("classes.dex").readBytes().take(3).toByteArray().contentEquals("dex".toByteArray()))
-        assertEquals("生成 Android 代码", stages.last())
+        assertEquals("build.dex", stages.last())
         val archive = NativePackageWriter(storage).pack(project, dex)
         ZipFile(archive).use { zip ->
             fun bytes(path: String) = zip.getInputStream(zip.getEntry(path)).use { it.readBytes() }
@@ -81,7 +82,7 @@ class NativeBuilderTest {
     @Test fun templatesAreRealImportableProjectsAndDataStaysScoped() {
         val storage = PluginStorage(temp.newFolder()); val projects = NativeProjects(storage)
         for (language in listOf("java", "kotlin")) {
-            val created = projects.confirm(projects.stage(NativeTemplates.create(storage, "项目", language)))
+            val created = projects.confirm(projects.stage(NativeTemplates.create(storage, "项目", language, text)))
             assertEquals(1, created.languages.size)
             assertTrue(created.root.canonicalFile.toPath().startsWith(storage.root.canonicalFile.toPath()))
             try { projects.save(created, "../private", "bad"); fail() } catch (_: IllegalArgumentException) {}

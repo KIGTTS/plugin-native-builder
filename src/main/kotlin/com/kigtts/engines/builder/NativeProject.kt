@@ -39,7 +39,7 @@ class NativeProjects(private val storage: PluginStorage) {
         val file = file(project, path)
         val original = if (path == "plugin-spec.json") file.readText(Charsets.UTF_8) else null
         file.writeText(value, Charsets.UTF_8)
-        if (original != null) try { require(read(project.root).id == project.id) { "项目 ID 需要另建项目才能修改" } }
+        if (original != null) try { require(read(project.root).id == project.id) { throw BuilderIssue("error.project_id") } }
         catch (failure: Throwable) { file.writeText(original, Charsets.UTF_8); throw failure }
     }
     fun remove(id: String) { project(id).root.deleteRecursively() }
@@ -55,13 +55,13 @@ class NativeProjects(private val storage: PluginStorage) {
         require(spec.getValue("versionCode").jsonPrimitive.int > 0 && string("version").matches(Regex("[0-9A-Za-z][0-9A-Za-z.+_-]{0,31}")))
         val minSdk = spec["minSdk"]?.jsonPrimitive?.int ?: 26; require(minSdk in 26..36)
         require((spec["runtime"]?.jsonPrimitive?.content ?: "android-dex") == "android-dex")
-        require(root.resolve("LICENSE").isFile && root.resolve("NOTICE.md").isFile) { "项目需要 LICENSE 和 NOTICE.md" }
+        require(root.resolve("LICENSE").isFile && root.resolve("NOTICE.md").isFile) { throw BuilderIssue("error.project_license") }
         val sources = root.resolve("sources").walkTopDown().filter { it.isFile }.toList()
         require(sources.size in 1..64 && sources.all { it.extension in setOf("kt", "java") } && sources.sumOf { it.length() } <= 1024 * 1024)
         root.walkTopDown().filter { it.isFile }.forEach { file ->
             val path = file.relativeTo(root).invariantSeparatorsPath
             require(path in setOf("plugin-spec.json", "LICENSE", "NOTICE.md") || path.startsWith("sources/") || path.startsWith("assets/") ||
-                (path.startsWith("dependencies/") && path.endsWith(".jar")) || (path.startsWith("lib/") && path.endsWith(".so"))) { "不支持的项目文件" }
+                (path.startsWith("dependencies/") && path.endsWith(".jar")) || (path.startsWith("lib/") && path.endsWith(".so"))) { throw BuilderIssue("error.project_file") }
         }
         return NativeProject(root, spec, id, name, entry, minSdk)
     }

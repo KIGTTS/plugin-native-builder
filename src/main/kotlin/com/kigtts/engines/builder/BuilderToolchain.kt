@@ -21,7 +21,7 @@ class BuilderToolchains(private val storage: PluginStorage) {
         val config = storage.file("config/toolchain.txt")
         return if (config.isFile) runCatching {
             val saved = config.readLines(); require(saved.size == 2)
-            val toolchain = read(saved[0]); require(BuilderFiles.digest(toolchain.directory.resolve("toolchain.json")) == saved[1]) { "工具链配置已变化，需要重新确认" }
+            val toolchain = read(saved[0]); require(BuilderFiles.digest(toolchain.directory.resolve("toolchain.json")) == saved[1]) { throw BuilderIssue("error.toolchain_changed") }
             toolchain
         }.getOrNull() else null
     }
@@ -46,11 +46,11 @@ class BuilderToolchains(private val storage: PluginStorage) {
             type("d8Class", "com.android.tools.r8.D8"), BuilderFiles.digest(manifest)).also(::verify)
     }
     fun verify(toolchain: BuilderToolchain) {
-        require(toolchain.manifestHash.isEmpty() || BuilderFiles.digest(toolchain.directory.resolve("toolchain.json")) == toolchain.manifestHash) { "工具链配置已变化，需要重新检查" }
+        require(toolchain.manifestHash.isEmpty() || BuilderFiles.digest(toolchain.directory.resolve("toolchain.json")) == toolchain.manifestHash) { throw BuilderIssue("error.toolchain_changed") }
         val files = toolchain.directory.walkTopDown().filter { it.isFile && it != toolchain.directory.resolve("toolchain.json") }.toList()
-        require(files.map { it.relativeTo(toolchain.directory).invariantSeparatorsPath }.toSet() == toolchain.files.keys) { "工具链文件清单不匹配" }
-        toolchain.files.forEach { (path, hash) -> require(BuilderFiles.digest(BuilderFiles.relative(toolchain.directory, path)) == hash) { "工具链校验失败" } }
-        require(toolchain.files.keys.any { it.startsWith("licenses/") }) { "工具链缺少许可证" }
+        require(files.map { it.relativeTo(toolchain.directory).invariantSeparatorsPath }.toSet() == toolchain.files.keys) { throw BuilderIssue("error.toolchain_files") }
+        toolchain.files.forEach { (path, hash) -> require(BuilderFiles.digest(BuilderFiles.relative(toolchain.directory, path)) == hash) { throw BuilderIssue("error.toolchain_digest") } }
+        require(toolchain.files.keys.any { it.startsWith("licenses/") }) { throw BuilderIssue("error.toolchain_license") }
     }
     fun loader(toolchain: BuilderToolchain, parent: ClassLoader): ClassLoader {
         verify(toolchain)

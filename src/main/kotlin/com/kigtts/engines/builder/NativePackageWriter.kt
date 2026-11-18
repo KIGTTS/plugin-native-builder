@@ -43,7 +43,7 @@ class NativePackageWriter(private val storage: PluginStorage) {
             val factory = KeyFactory.getInstance("RSA")
             return KeyPair(factory.generatePublic(X509EncodedKeySpec(public.readBytes())), factory.generatePrivate(PKCS8EncodedKeySpec(private.readBytes())))
         }
-        require(!private.exists() && !public.exists()) { "本地签名密钥不完整，请恢复备份" }
+        require(!private.exists() && !public.exists()) { throw BuilderIssue("error.signing") }
         return KeyPairGenerator.getInstance("RSA").apply { initialize(3072) }.generateKeyPair().also {
             requireNotNull(private.parentFile).mkdirs(); private.writeBytes(it.private.encoded); public.writeBytes(it.public.encoded)
         }

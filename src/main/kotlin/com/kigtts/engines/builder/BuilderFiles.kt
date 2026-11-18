@@ -8,7 +8,7 @@ import java.util.zip.ZipFile
 object BuilderFiles {
     fun relative(root: File, path: String): File {
         require(path.isNotBlank() && path.length <= 240 && !path.startsWith('/') && !path.contains('\\') && !path.contains(':') && !path.contains('\u0000'))
-        require(path.split('/').none { it in setOf("", ".", "..") }) { "路径越界" }
+        require(path.split('/').none { it in setOf("", ".", "..") }) { throw BuilderIssue("error.invalid_path") }
         return root.resolve(path).canonicalFile.also { require(it.toPath().startsWith(root.canonicalFile.toPath()) && it != root.canonicalFile) }
     }
     fun digest(file: File): String = file.inputStream().use { input ->
@@ -20,7 +20,7 @@ object BuilderFiles {
         require(source.canonicalFile.toPath().startsWith(storage.root.canonicalFile.toPath()))
         val names = hashSetOf<String>(); var total = 0L
         fun checked(path: String, size: Long): File {
-            require(names.add(path.lowercase()) && names.size <= maxFiles) { "文件过多或重名" }
+            require(names.add(path.lowercase()) && names.size <= maxFiles) { throw BuilderIssue("error.file_count") }
             total += size; require(total <= maxBytes)
             return relative(target, path).also { requireNotNull(it.parentFile).mkdirs() }
         }
