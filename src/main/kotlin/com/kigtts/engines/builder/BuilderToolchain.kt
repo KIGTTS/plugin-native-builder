@@ -38,7 +38,8 @@ class BuilderToolchains(private val storage: PluginStorage) {
         fun list(key: String) = obj.getValue(key).jsonArray.map { it.jsonPrimitive.content }
         val files = obj.getValue("files").jsonObject.mapValues { (_, value) -> value.jsonPrimitive.content.also { require(it.matches(Regex("[a-f0-9]{64}"))) } }
         val languages = list("languages").toSet(); require(languages.isNotEmpty() && setOf("java", "kotlin").containsAll(languages))
-        val dex = list("dexFiles"); require(dex.isNotEmpty() && dex.all { it.endsWith(".dex") && it in files })
+        val dex = list("dexFiles")
+        require(dex.isNotEmpty() && dex.all { (it.endsWith(".dex") || it.endsWith(".jar")) && it in files })
         val classpath = list("classpath"); require(classpath.isNotEmpty() && classpath.all { it.endsWith(".jar") && it in files })
         fun type(key: String, default: String) = (obj[key]?.jsonPrimitive?.content ?: default).also { require(it.matches(Regex("[A-Za-z_][A-Za-z0-9_.]*"))) }
         return BuilderToolchain(token, obj.getValue("name").jsonPrimitive.content.take(160), directory, files, dex, classpath, languages,

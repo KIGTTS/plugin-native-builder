@@ -1,17 +1,26 @@
 #Requires -Version 7.0
 param([switch]$ExperimentalKotlin, [switch]$SkipBuild,
-    [string]$OutputDirectory = '', [string]$RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..')))
+    [Parameter(Mandatory)][string]$AsmJar,
+    [string]$AndroidSdk = $env:ANDROID_HOME,
+    [string]$PlatformJar,
+    [string]$PlatformNotice,
+    [string]$PluginApiJar,
+    [string]$OutputDirectory,
+    [string]$RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')))
 $ErrorActionPreference = 'Stop'
 $utf8 = [Text.UTF8Encoding]::new($false)
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $RepoRoot 'build/native-toolchains' }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
-$env:JAVA_HOME = 'C:/Program Files/Microsoft/jdk-17.0.17.10-hotspot'
+if (-not $env:JAVA_HOME) { throw 'Set JAVA_HOME to JDK 17.' }
+if (-not $AndroidSdk) { throw 'Set ANDROID_HOME or specify -AndroidSdk.' }
+if (-not $PlatformJar) { $PlatformJar = Join-Path $AndroidSdk 'platforms/android-36/android.jar' }
+$AsmJar = (Resolve-Path -LiteralPath $AsmJar).Path
 if (-not $SkipBuild) {
-    & (Join-Path $RepoRoot '.tools/gradle-8.13/bin/gradle.bat') --project-dir $RepoRoot --gradle-user-home (Join-Path $RepoRoot '.gradle-user-home') --console=plain :plugin-api:jar :engine-plugins:native-builder:collectDesktopToolchainInputs
+    & (Join-Path $RepoRoot 'gradlew.bat') --project-dir $RepoRoot --console=plain :collectDesktopToolchainInputs
     if ($LASTEXITCODE -ne 0) { throw 'Toolchain input resolution failed' }
 }
-$inputs = Join-Path $RepoRoot 'engine-plugins/native-builder/build/desktop-toolchain-inputs'
+$inputs = Join-Path $RepoRoot 'build/desktop-toolchain-inputs'
 $work = Join-Path $OutputDirectory ([Guid]::NewGuid().ToString())
 $code = Join-Path $work 'code'; $classpath = Join-Path $work 'classpath'; $licenses = Join-Path $work 'licenses'
 [IO.Directory]::CreateDirectory($code) | Out-Null
@@ -24,12 +33,60 @@ if ($ExperimentalKotlin) {
     $compilerJars += @($allJars | Where-Object { $_.Name -match '^kotlin-compiler-embeddable-|^kotlin-daemon-embeddable-|^kotlin-reflect-|^trove4j-' })
     if (-not ($compilerJars.Name -match '^kotlin-compiler-embeddable-')) { throw 'Kotlin compiler is missing' }
 }
-Copy-Item -LiteralPath (Join-Path $RepoRoot '.tools/android-sdk/platforms/android-36/android.jar') -Destination (Join-Path $classpath 'android.jar')
+Copy-Item -LiteralPath $PlatformJar -Destination (Join-Path $classpath 'android.jar')
+if ($PlatformNotice) { Copy-Item -LiteralPath $PlatformNotice -Destination (Join-Path $licenses 'Android-NOTICE.txt') }
 foreach ($jar in @($allJars | Where-Object { $_.Name -match '^plugin-api\.jar$|^kotlin-stdlib-|^kotlinx-coroutines-core-jvm-|^kotlinx-serialization-.*-jvm-|^annotations-' })) {
     Copy-Item -LiteralPath $jar.FullName -Destination (Join-Path $classpath $jar.Name)
 }
-& (Join-Path $RepoRoot '.tools/android-sdk/build-tools/36.0.0/d8.bat') --release --min-api 26 --lib (Join-Path $classpath 'android.jar') --output $code @($compilerJars.FullName)
+if ($PluginApiJar) { Copy-Item -LiteralPath $PluginApiJar -Destination (Join-Path $classpath 'plugin-api.jar') -Force }
+$compatibility = Join-Path $OutputDirectory ('compiler-compat-' + [Guid]::NewGuid().ToString())
+$compatibilityClasses = Join-Path $compatibility 'classes'
+[IO.Directory]::CreateDirectory($compatibilityClasses) | Out-Null
+$shim = Join-Path $PSScriptRoot 'android-compiler-compat/javax/lang/model/SourceVersion.java'
+$io = Join-Path $PSScriptRoot 'android-compiler-compat/com/kigtts/tools/CompilerIo.java'
+$patcher = Join-Path $PSScriptRoot 'AndroidCompilerPatcher.java'
+$javac = Join-Path $env:JAVA_HOME 'bin/javac.exe'
+$java = Join-Path $env:JAVA_HOME 'bin/java.exe'
+& $javac -cp $AsmJar -d $compatibility $patcher
+if ($LASTEXITCODE -ne 0) { throw 'Compiler adaptation tool failed to compile' }
+& $javac --release 8 -d $compatibilityClasses $shim $io
+if ($LASTEXITCODE -ne 0) { throw 'Android compatibility class failed to compile' }
+$compilerInputs = @(
+    foreach ($jar in $compilerJars) {
+        $adapted = Join-Path $compatibility $jar.Name
+        & $java -cp ($compatibility + [IO.Path]::PathSeparator + $AsmJar) AndroidCompilerPatcher $jar.FullName $adapted
+        if ($LASTEXITCODE -ne 0) { throw "Compiler adaptation failed: $($jar.Name)" }
+        $adapted
+    }
+)
+$compilerInputs += @(Get-ChildItem -LiteralPath $compatibilityClasses -Recurse -Filter '*.class' | ForEach-Object FullName)
+& (Join-Path $AndroidSdk 'build-tools/36.0.0/d8.bat') --release --min-api 26 --lib (Join-Path $classpath 'android.jar') --output $code @compilerInputs
 if ($LASTEXITCODE -ne 0) { throw 'Compiler DEX conversion failed' }
+# Keep the compiler message bundles, parser tables and services alongside its DEX.
+$dexFiles = @(Get-ChildItem -LiteralPath $code -Filter '*.dex')
+$archivePath = Join-Path $code 'compiler.jar'
+$compilerArchive = [IO.Compression.ZipFile]::Open($archivePath, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach ($dex in $dexFiles) {
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($compilerArchive, $dex.FullName, $dex.Name) | Out-Null
+    }
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($jar in $compilerJars) {
+        $inputArchive = [IO.Compression.ZipFile]::OpenRead($jar.FullName)
+        try {
+            foreach ($resource in $inputArchive.Entries) {
+                if (-not $resource.Name -or $resource.FullName.EndsWith('.class') -or
+                    $resource.FullName -notmatch '^(org/eclipse/|com/android/tools/r8/|META-INF/services/)' -or
+                    -not $seen.Add($resource.FullName)) { continue }
+                $inputStream = $resource.Open()
+                $outputStream = $compilerArchive.CreateEntry($resource.FullName).Open()
+                try { $inputStream.CopyTo($outputStream) }
+                finally { $inputStream.Dispose(); $outputStream.Dispose() }
+            }
+        } finally { $inputArchive.Dispose() }
+    }
+} finally { $compilerArchive.Dispose() }
+foreach ($dex in $dexFiles) { Remove-Item -LiteralPath $dex.FullName }
 # Keep full library notices embedded in compiler/dependency archives.
 foreach ($jar in $allJars) {
     $zip = [IO.Compression.ZipFile]::OpenRead($jar.FullName)
@@ -41,7 +98,7 @@ foreach ($jar in $allJars) {
     } finally { $zip.Dispose() }
 }
 $notice = @'
-This bundle contains unmodified ECJ/R8 tools converted to Android DEX and compile-only Android/API/Kotlin libraries.
+This bundle contains ECJ/R8 tools adapted to older Android releases and converted to DEX, plus compile-only libraries.
 ECJ source and EPL license: https://github.com/eclipse-jdt/eclipse.jdt.core
 R8 source and BSD license: https://r8.googlesource.com/r8
 Kotlin source and Apache license: https://github.com/JetBrains/kotlin
@@ -52,6 +109,9 @@ Standard desktop Kotlin compiler dependencies may require Android-specific adapt
 '@
 [IO.File]::WriteAllText((Join-Path $licenses 'NOTICE.txt'), $notice, $utf8)
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'LICENSE') -Destination (Join-Path $licenses 'KIGTTS-MIT.txt')
+$sources = Join-Path $work 'sources'
+[IO.Directory]::CreateDirectory($sources) | Out-Null
+Copy-Item -LiteralPath @($shim, $io, $patcher) -Destination $sources
 $files = [ordered]@{}
 foreach ($file in Get-ChildItem -LiteralPath $work -Recurse -File | Sort-Object FullName) {
     $relative = [IO.Path]::GetRelativePath($work, $file.FullName).Replace('\', '/')
@@ -60,7 +120,7 @@ foreach ($file in Get-ChildItem -LiteralPath $work -Recurse -File | Sort-Object 
 $manifest = [ordered]@{
     name = if ($ExperimentalKotlin) { 'Java + experimental Kotlin tools (ART unverified)' } else { 'Java tools (ART unverified)' }
     languages = @(if ($ExperimentalKotlin) { 'java'; 'kotlin' } else { 'java' })
-    dexFiles = @(Get-ChildItem -LiteralPath $code -Filter '*.dex' | ForEach-Object { 'code/' + $_.Name })
+    dexFiles = @('code/compiler.jar')
     classpath = @(Get-ChildItem -LiteralPath $classpath -Filter '*.jar' | ForEach-Object { 'classpath/' + $_.Name })
     javaClass = 'org.eclipse.jdt.core.compiler.batch.BatchCompiler'
     kotlinClass = 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'

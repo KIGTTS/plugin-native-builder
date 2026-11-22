@@ -32,7 +32,7 @@
   "build.kotlin": "Compiling Kotlin",
   "build.java": "Compiling Java",
   "build.dex": "Generating Android code",
-  "build.done": "Build complete. Review and install the plugin in the plugin manager.",
+  "build.done": "Build complete. Enable debugging or share the plugin.",
   "build.cancelled": "Build cancelled",
   "build.failed": "Build failed. Check the source and build tools.",
   "build.failed_detail": "Build failed: {detail}",

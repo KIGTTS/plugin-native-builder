@@ -11,7 +11,7 @@ import java.util.zip.ZipOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 class NativeBuilderPlugin : KigPlugin {
-    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.3")
+    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.5")
     override val localization = PluginLocalization("zh-CN", listOf("zh-CN", "zh-CN-x-casual", "en", "ko", "ja"))
     private var strings = PluginStrings(emptyMap())
     private lateinit var environment: PluginEnvironment
@@ -35,7 +35,8 @@ class NativeBuilderPlugin : KigPlugin {
     override suspend fun attach(environment: PluginEnvironment) {
         strings = PluginStrings.fromAssets(environment.assets)
         this.environment = environment; projects = NativeProjects(environment.storage); toolchains = BuilderToolchains(environment.storage)
-        packages = NativePackageWriter(environment.storage); toolchain = toolchains.current()
+        packages = NativePackageWriter(environment.storage)
+        toolchain = toolchains.current()?.takeUnless(OfficialNativeTools::isRetired)
     }
     override val contributions get() = contributionsFor(if (::environment.isInitialized) environment.locale else "zh-CN")
     override fun contributions(context: PluginContext) = contributionsFor(context.locale)

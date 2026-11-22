@@ -1,8 +1,8 @@
 {
   "id": "tools.native-builder",
   "name": "原生构建扩展",
-  "version": "0.8.3",
-  "versionCode": 4,
+  "version": "0.8.5",
+  "versionCode": 6,
   "entryClass": "com.kigtts.engines.builder.NativeBuilderPlugin",
   "apiVersion": 14,
   "minSdk": 26,

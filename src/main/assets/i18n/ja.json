@@ -32,7 +32,7 @@
   "build.kotlin": "Kotlin をコンパイル中",
   "build.java": "Java をコンパイル中",
   "build.dex": "Android コードを生成中",
-  "build.done": "ビルドが完了しました。プラグイン管理画面で確認し、インストールできます。",
+  "build.done": "ビルドが完了しました。デバッグを有効にするか、プラグインを共有できます。",
   "build.cancelled": "ビルドをキャンセルしました",
   "build.failed": "ビルドに失敗しました。ソースとビルドツールを確認してください。",
   "build.failed_detail": "ビルドに失敗しました：{detail}",
