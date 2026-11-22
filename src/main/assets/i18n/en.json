@@ -79,5 +79,9 @@
   "template.description": "Sample plugin",
   "template.greet": "Say hello",
   "template.greeting": "Hello!",
-  "template.tools": "Tools"
+  "template.tools": "Tools",
+  "toolchain.download": "Download Java compiler libraries",
+  "toolchain.downloading": "Downloading and verifying Java compiler libraries",
+  "project.icon": "Material icon name",
+  "build.debug": "Enable debugging"
 }

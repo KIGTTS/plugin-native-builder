@@ -79,5 +79,9 @@
   "template.description": "示例插件",
   "template.greet": "问好",
   "template.greeting": "你好！",
-  "template.tools": "工具"
+  "template.tools": "工具",
+  "toolchain.download": "下载 Java 编译库",
+  "toolchain.downloading": "正在下载与验证 Java 编译库",
+  "project.icon": "Material 图标名称",
+  "build.debug": "启用调试"
 }

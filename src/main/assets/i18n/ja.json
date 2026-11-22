@@ -79,5 +79,9 @@
   "template.description": "サンプルプラグイン",
   "template.greet": "あいさつ",
   "template.greeting": "こんにちは！",
-  "template.tools": "ツール"
+  "template.tools": "ツール",
+  "toolchain.download": "Java コンパイラライブラリをダウンロード",
+  "toolchain.downloading": "Java コンパイラライブラリをダウンロードして検証中",
+  "project.icon": "Material アイコン名",
+  "build.debug": "デバッグを有効にする"
 }

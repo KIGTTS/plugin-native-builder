@@ -11,7 +11,7 @@ import java.util.zip.ZipOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 class NativeBuilderPlugin : KigPlugin {
-    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.2")
+    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.3")
     override val localization = PluginLocalization("zh-CN", listOf("zh-CN", "zh-CN-x-casual", "en", "ko", "ja"))
     private var strings = PluginStrings(emptyMap())
     private lateinit var environment: PluginEnvironment
@@ -46,7 +46,7 @@ class NativeBuilderPlugin : KigPlugin {
             drawerEntries = listOf(DrawerEntry("manager", title, "manager", PluginIcon.EDIT)),
             settingsEntries = listOf(SettingsEntry("builder", title, "manager", PluginIcon.EDIT, "developer",
                 text("category", fallback = "开发工具"), text("description", fallback = "Java 与 Kotlin 插件"))),
-            automationActions = listOf("import", "build", "open"))
+            automationActions = listOf("import", "build", "open", "new"))
     }
 
     override fun page(pageId: String, context: PluginContext): PluginPage? = if (pageId == "manager") {
@@ -69,8 +69,29 @@ class NativeBuilderPlugin : KigPlugin {
                 }
                 "new" -> PluginOutcome.Menu(text("project.new"), listOf(PageAction("new-java", "Java", PluginIcon.TEXT), PageAction("new-kotlin", "Kotlin", PluginIcon.TEXT)))
                 "new-java", "new-kotlin" -> PluginOutcome.TextInput(text("project.name"), "name/${action.substringAfter('-')}")
-                "name" -> stage(projects.stage(NativeTemplates.create(environment.storage, context.inputs["value"].orEmpty(), id, text)), text)
+                "name" -> {
+                    val template = NativeTemplates.create(environment.storage, context.inputs["value"].orEmpty(), id, text)
+                    try { open(pages.project(projects.confirm(projects.stage(template)))) }
+                    finally { template.deleteRecursively() }
+                }
                 "project" -> open(pages.project(projects.project(id)))
+                "project-name" -> PluginOutcome.TextInput(text("project.name"), "project-save-name/$id", initialValue = projects.project(id).name)
+                "project-icon" -> PluginOutcome.TextInput(text("project.icon"), "project-save-icon/$id",
+                    initialValue = (projects.project(id).spec["icon"] as? JsonObject)?.get("symbol")?.jsonPrimitive?.content.orEmpty())
+                "project-save-name", "project-save-icon" -> {
+                    require(context.inputs["_callerPlugin"] == null)
+                    val project = projects.project(id)
+                    val value = context.inputs["value"].orEmpty().trim()
+                    val spec = project.spec.toMutableMap()
+                    if (action == "project-save-name") spec["name"] = JsonPrimitive(value)
+                    else if (value.isEmpty()) spec.remove("icon")
+                    else {
+                        require(value.matches(Regex("[a-z][a-z0-9_]{0,79}")))
+                        spec["icon"] = buildJsonObject { put("symbol", value) }
+                    }
+                    projects.save(project, "plugin-spec.json", JsonObject(spec).toString())
+                    open(pages.project(projects.project(id)))
+                }
                 "open" -> PluginOutcome.OpenPage("manager")
                 "files" -> open(files(projects.project(id), text))
                 "file-open" -> {
@@ -138,6 +159,11 @@ class NativeBuilderPlugin : KigPlugin {
                     open(files(project, text))
                 }
                 "choose-toolchain" -> PluginOutcome.ImportResource(text("toolchain.import"), "imports/toolchains", "toolchain-import", zip = true)
+                "download-toolchain" -> {
+                    require(build?.isActive != true)
+                    toolchain = OfficialNativeTools.install(environment, toolchains)
+                    PluginOutcome.RefreshUi
+                }
                 "toolchain-import" -> toolchains.stage(environment.storage.file(requireNotNull(context.inputs["resourcePath"]))).let { pendingTools[it.token] = it; open(pages.toolchain(it)) }
                 "toolchain-confirm" -> {
                     require(context.inputs["_callerPlugin"] == null)
@@ -147,6 +173,13 @@ class NativeBuilderPlugin : KigPlugin {
                 "build" -> begin(projects.project(id.ifEmpty { requireNotNull(context.inputs["projectId"]) }), text)
                 "cancel" -> { build?.cancel(); PluginOutcome.Message(text("build.cancel_requested")) }
                 "share" -> outputs.getValue(id).let { PluginOutcome.ExportResource(text("build.share"), PluginResource(it.relativeTo(environment.storage.root).invariantSeparatorsPath), it.name, "application/octet-stream") }
+                "debug" -> {
+                    require(context.inputs["_callerPlugin"] == null)
+                    val file = outputs.getValue(id)
+                    val staging = environment.storage.directory("debug-builds").resolve(file.name)
+                    file.copyTo(staging, overwrite = true)
+                    PluginOutcome.InstallPackage(PluginResource(staging.relativeTo(environment.storage.root).invariantSeparatorsPath))
+                }
                 "source-export" -> export(projects.project(id), text)
                 "delete" -> open(PluginPage("delete/$id", text("project.delete"), listOf(PageBlock.Notice(text("project.delete_notice")), PageBlock.Actions(listOf(PageAction("delete-confirm/$id", text("confirm_delete"), PluginIcon.CLOSE))))))
                 "delete-confirm" -> { require(context.inputs["_callerPlugin"] == null); projects.remove(id); PluginOutcome.OpenPage("manager") }
@@ -163,7 +196,6 @@ class NativeBuilderPlugin : KigPlugin {
     }
     private fun begin(project: NativeProject, text: BuilderText): PluginOutcome {
         require(build?.isActive != true) { throw BuilderIssue("error.in_progress") }
-        val selected = toolchain ?: throw BuilderIssue("toolchain.missing")
         val workspace = environment.storage.directory("tmp/build-${UUID.randomUUID()}")
         val snapshot = workspace.resolve("source"); project.root.copyRecursively(snapshot)
         val source = projects.read(snapshot)
@@ -171,6 +203,10 @@ class NativeBuilderPlugin : KigPlugin {
         update(project, text("build.preparing"), running = true, ready = false, text)
         build = scope.launch {
             try {
+                val selected = toolchain ?: run {
+                    update(project, text("toolchain.downloading"), running = true, ready = false, text)
+                    OfficialNativeTools.install(environment, toolchains).also { toolchain = it }
+                }
                 val loader = toolchains.loader(selected, javaClass.classLoader!!)
                 val dex = NativeCompiler(loader, selected).compile(source, workspace) { phase -> update(project, text(phase), running = true, ready = false, text) }
                 currentCoroutineContext().ensureActive()

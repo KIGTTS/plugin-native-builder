@@ -1,8 +1,8 @@
 {
   "id": "tools.native-builder",
   "name": "原生构建扩展",
-  "version": "0.8.2",
-  "versionCode": 3,
+  "version": "0.8.3",
+  "versionCode": 4,
   "entryClass": "com.kigtts.engines.builder.NativeBuilderPlugin",
   "apiVersion": 14,
   "minSdk": 26,
@@ -11,10 +11,12 @@
   "capabilities": [
     "ui",
     "resources",
-    "app-control"
+    "app-control",
+    "network"
   ],
   "permissionPurposes": {
     "resources": "导入项目、编译工具和依赖，保存编译结果。",
-    "app-control": "按你的操作管理原生插件项目并导出构建结果。"
+    "app-control": "按你的操作管理原生插件项目并导出构建结果。",
+    "network": "从官方仓库下载 Android 编译库。"
   }
 }
