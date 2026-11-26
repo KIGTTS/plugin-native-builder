@@ -7,13 +7,15 @@ import java.io.File
 import java.util.UUID
 
 internal object NativeTemplates {
-    fun create(storage: PluginStorage, name: String, language: String, text: BuilderText): File {
-        require(name.length in 1..64 && language in setOf("java", "kotlin"))
+    fun create(storage: PluginStorage, name: String, language: String, text: BuilderText,
+        id: String = "local.plugin.p${UUID.randomUUID().toString().take(8)}", author: String = ""): File {
+        require(name.length in 1..64 && language in setOf("java", "kotlin") && author.length <= 120)
+        require(id.length <= 80 && id.matches(Regex("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*){1,7}")))
         val root = storage.directory("new/${UUID.randomUUID()}")
-        val id = "local.plugin-${UUID.randomUUID().toString().take(8)}"
         val entry = "com.kigtts.user.GeneratedPlugin"
         root.resolve("plugin-spec.json").writeText(buildJsonObject {
             put("id", id); put("name", name); put("version", "0.1.0"); put("versionCode", 1); put("entryClass", entry)
+            put("author", author)
             put("apiVersion", PLUGIN_API_VERSION); put("minSdk", 26); put("runtime", "android-dex"); put("license", "MIT"); put("capabilities", JsonArray(listOf(JsonPrimitive("ui"))))
         }.toString(), Charsets.UTF_8)
         root.resolve("LICENSE").writeText("""

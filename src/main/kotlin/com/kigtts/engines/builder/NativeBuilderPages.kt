@@ -30,8 +30,6 @@ internal class NativeBuilderPages(private val text: BuilderText) {
     ) + if (problem.isNotEmpty()) listOf(PageBlock.Notice(problem)) else emptyList())
     fun project(project: NativeProject) = PluginPage("project/${project.id}", project.name, listOf(
         PageBlock.Group(text("project"), listOf(
-            PageBlock.Actions(listOf(PageAction("project-name/${project.id}", text("project.name"), PluginIcon.EDIT),
-                PageAction("project-icon/${project.id}", text("project.icon"), PluginIcon.IMAGE))),
             PageBlock.Actions(listOf(PageAction("files/${project.id}", text("project.files"), PluginIcon.MENU),
                 PageAction("build/${project.id}", text("build.start"), PluginIcon.ADD), PageAction("source-export/${project.id}", text("project.share_source"), PluginIcon.EXPORT),
                 PageAction("delete/${project.id}", text("project.delete"), PluginIcon.CLOSE))))),

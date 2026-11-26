@@ -51,6 +51,7 @@ class NativeProjects(private val storage: PluginStorage) {
         fun string(key: String) = spec.getValue(key).jsonPrimitive.content
         val id = string("id"); safeId(id)
         val name = string("name"); require(name.length in 1..160)
+        require(spec["author"]?.jsonPrimitive?.contentOrNull.orEmpty().length <= 120)
         val entry = string("entryClass"); require(entry.matches(Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")))
         // Compatibility is checked against the host range. A project keeps its declared API when repacked.
         require(spec.getValue("apiVersion").jsonPrimitive.int in MIN_PLUGIN_API_VERSION..PLUGIN_API_VERSION)
