@@ -11,7 +11,7 @@ import java.util.zip.ZipOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 class NativeBuilderPlugin : KigPlugin {
-    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.5")
+    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.7")
     override val localization = PluginLocalization("zh-CN", listOf("zh-CN", "zh-CN-x-casual", "en", "ko", "ja"))
     private var strings = PluginStrings(emptyMap())
     private lateinit var environment: PluginEnvironment
@@ -50,9 +50,14 @@ class NativeBuilderPlugin : KigPlugin {
             automationActions = listOf("import", "build", "open", "new"))
     }
 
-    override fun page(pageId: String, context: PluginContext): PluginPage? = if (pageId == "manager") {
-        NativeBuilderPages(BuilderText(strings, context.locale)).manager(projects.projects(), toolchain, problem)
-    } else synchronized(pageCache) { pageCache[pageId] }
+    override fun page(pageId: String, context: PluginContext): PluginPage? {
+        val pages = NativeBuilderPages(BuilderText(strings, context.locale))
+        return when (pageId) {
+            "manager" -> pages.manager(projects.projects())
+            "toolchains" -> pages.toolchains(toolchain, problem)
+            else -> synchronized(pageCache) { pageCache[pageId] }
+        }
+    }
 
     override suspend fun execute(actionId: String, context: PluginContext): PluginOutcome {
         val text = BuilderText(strings, context.locale)
@@ -159,6 +164,7 @@ class NativeBuilderPlugin : KigPlugin {
                     } catch (failure: Throwable) { added.forEach { it.delete() }; throw failure }
                     open(files(project, text))
                 }
+                "toolchains" -> PluginOutcome.OpenPage("toolchains")
                 "choose-toolchain" -> PluginOutcome.ImportResource(text("toolchain.import"), "imports/toolchains", "toolchain-import", zip = true)
                 "download-toolchain" -> {
                     require(build?.isActive != true)
@@ -169,7 +175,7 @@ class NativeBuilderPlugin : KigPlugin {
                 "toolchain-confirm" -> {
                     require(context.inputs["_callerPlugin"] == null)
                     val pending = pendingTools.remove(id) ?: throw BuilderIssue("error.review_expired")
-                    toolchains.confirm(pending); toolchain = pending; problem = ""; PluginOutcome.OpenPage("manager")
+                    toolchains.confirm(pending); toolchain = pending; problem = ""; PluginOutcome.OpenPage("toolchains")
                 }
                 "build" -> begin(projects.project(id.ifEmpty { requireNotNull(context.inputs["projectId"]) }), text)
                 "cancel" -> { build?.cancel(); PluginOutcome.Message(text("build.cancel_requested")) }

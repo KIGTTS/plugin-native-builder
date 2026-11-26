@@ -43,7 +43,9 @@ class NativeCompiler(private val loader: ClassLoader, private val toolchain: Bui
                 val method = type.methods.firstOrNull { it.name == "compile" && it.parameterTypes.size == 4 && it.parameterTypes[0] == Array<String>::class.java }
                     ?: throw BuilderIssue("error.java_cli")
                 val platform = libraries.firstOrNull { it.name == "android.jar" } ?: throw BuilderIssue("error.android_jar")
-                val args = (listOf("-source", "1.8", "-target", "1.8", "-proc:none", "-encoding", "UTF-8", "-bootclasspath", platform.absolutePath,
+                val bootClasspath = (listOf(platform) + libraries.filter { it.name == "android-java-linkage.jar" })
+                    .joinToString(File.pathSeparator) { it.absolutePath }
+                val args = (listOf("-source", "1.8", "-target", "1.8", "-proc:none", "-encoding", "UTF-8", "-bootclasspath", bootClasspath,
                     "-classpath", classpath, "-d", classes.absolutePath) + java.map { it.absolutePath }).toTypedArray()
                 require(method.invoke(null, args, PrintWriter(diagnostic), PrintWriter(diagnostic), null) == true) { diagnostic.toString().takeLast(16000) }
             }

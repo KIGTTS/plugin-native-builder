@@ -1,6 +1,7 @@
 package com.kigtts.engines.builder
 
 import com.kigtts.plugin.api.PLUGIN_API_VERSION
+import com.kigtts.plugin.api.MIN_PLUGIN_API_VERSION
 import com.kigtts.plugin.api.PluginJson
 import com.kigtts.plugin.api.PluginStorage
 import kotlinx.serialization.json.*
@@ -51,7 +52,8 @@ class NativeProjects(private val storage: PluginStorage) {
         val id = string("id"); safeId(id)
         val name = string("name"); require(name.length in 1..160)
         val entry = string("entryClass"); require(entry.matches(Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")))
-        require(spec.getValue("apiVersion").jsonPrimitive.int == PLUGIN_API_VERSION)
+        // Compatibility is checked against the host range. A project keeps its declared API when repacked.
+        require(spec.getValue("apiVersion").jsonPrimitive.int in MIN_PLUGIN_API_VERSION..PLUGIN_API_VERSION)
         require(spec.getValue("versionCode").jsonPrimitive.int > 0 && string("version").matches(Regex("[0-9A-Za-z][0-9A-Za-z.+_-]{0,31}")))
         val minSdk = spec["minSdk"]?.jsonPrimitive?.int ?: 26; require(minSdk in 26..36)
         require((spec["runtime"]?.jsonPrimitive?.content ?: "android-dex") == "android-dex")

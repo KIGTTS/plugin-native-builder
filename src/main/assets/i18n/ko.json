@@ -80,6 +80,8 @@
   "template.greet": "인사하기",
   "template.greeting": "안녕하세요!",
   "template.tools": "도구",
+
+  "toolchain.manage": "빌드 리소스 관리",
   "toolchain.download": "Java 컴파일러 라이브러리 다운로드",
   "toolchain.downloading": "Java 컴파일러 라이브러리 다운로드 및 확인 중",
   "project.icon": "Material 아이콘 이름",

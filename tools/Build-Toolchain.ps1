@@ -47,6 +47,14 @@ $io = Join-Path $PSScriptRoot 'android-compiler-compat/com/kigtts/tools/Compiler
 $patcher = Join-Path $PSScriptRoot 'AndroidCompilerPatcher.java'
 $javac = Join-Path $env:JAVA_HOME 'bin/javac.exe'
 $java = Join-Path $env:JAVA_HOME 'bin/java.exe'
+$jarTool = Join-Path $env:JAVA_HOME 'bin/jar.exe'
+$linkageSource = Join-Path $PSScriptRoot 'compiler-linkage/java/lang/invoke/LambdaMetafactory.java'
+$linkageClasses = Join-Path $compatibility 'linkage'
+[IO.Directory]::CreateDirectory($linkageClasses) | Out-Null
+& $javac --release 8 -d $linkageClasses $linkageSource
+if ($LASTEXITCODE -ne 0) { throw 'Java Lambda linkage stub did not compile' }
+& $jarTool --create --file (Join-Path $classpath 'android-java-linkage.jar') -C $linkageClasses .
+if ($LASTEXITCODE -ne 0) { throw 'Could not archive Java compile-only linkage stubs' }
 & $javac -cp $AsmJar -d $compatibility $patcher
 if ($LASTEXITCODE -ne 0) { throw 'Compiler adaptation tool failed to compile' }
 & $javac --release 8 -d $compatibilityClasses $shim $io
@@ -111,7 +119,7 @@ Standard desktop Kotlin compiler dependencies may require Android-specific adapt
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'LICENSE') -Destination (Join-Path $licenses 'KIGTTS-MIT.txt')
 $sources = Join-Path $work 'sources'
 [IO.Directory]::CreateDirectory($sources) | Out-Null
-Copy-Item -LiteralPath @($shim, $io, $patcher) -Destination $sources
+Copy-Item -LiteralPath @($shim, $io, $patcher, $linkageSource) -Destination $sources
 $files = [ordered]@{}
 foreach ($file in Get-ChildItem -LiteralPath $work -Recurse -File | Sort-Object FullName) {
     $relative = [IO.Path]::GetRelativePath($work, $file.FullName).Replace('\', '/')

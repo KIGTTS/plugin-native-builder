@@ -1,10 +1,10 @@
 {
   "id": "tools.native-builder",
   "name": "原生构建扩展",
-  "version": "0.8.5",
-  "versionCode": 6,
+  "version": "0.8.7",
+  "versionCode": 8,
   "entryClass": "com.kigtts.engines.builder.NativeBuilderPlugin",
-  "apiVersion": 14,
+  "apiVersion": 38,
   "minSdk": 26,
   "runtime": "android-dex",
   "license": "MIT",

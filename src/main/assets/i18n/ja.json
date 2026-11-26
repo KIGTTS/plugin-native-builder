@@ -80,6 +80,8 @@
   "template.greet": "あいさつ",
   "template.greeting": "こんにちは！",
   "template.tools": "ツール",
+
+  "toolchain.manage": "ビルドリソースの管理",
   "toolchain.download": "Java コンパイラライブラリをダウンロード",
   "toolchain.downloading": "Java コンパイラライブラリをダウンロードして検証中",
   "project.icon": "Material アイコン名",

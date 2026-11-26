@@ -5,24 +5,37 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 internal class NativeBuilderPages(private val text: BuilderText) {
-    fun manager(projects: List<NativeProject>, toolchain: BuilderToolchain?, problem: String) = PluginPage("manager", text("title"), listOf(
+    private fun projectHeader(project: NativeProject, opens: Boolean = false): ManagementItem {
+        val icon = project.spec["icon"] as? JsonObject
+        val image = icon?.get("path")?.jsonPrimitive?.content?.takeIf { path ->
+            path.startsWith("assets/") && path.split('/').none { it.isEmpty() || it == "." || it == ".." } &&
+                path.substringAfterLast('.').lowercase() in setOf("svg", "png", "jpg", "jpeg", "webp") &&
+                runCatching { BuilderFiles.relative(project.root, path).let { it.isFile && it.length() in 1..1_048_576 } }.getOrDefault(false)
+        }?.let { PluginResource("projects/${project.id}/$it", "tools.native-builder") }
+        return ManagementItem(project.id, project.name, "v${project.version} · ${project.languages.joinToString(" / ")}",
+            PluginIcon.TEXT, image = image, symbol = icon?.get("symbol")?.jsonPrimitive?.content ?: "code",
+            primaryAction = if (opens) "project/${project.id}" else null)
+    }
+
+    fun manager(projects: List<NativeProject>) = PluginPage("manager", text("title"), listOf(
         PageBlock.Group(text("project"), listOf(PageBlock.Actions(listOf(PageAction("choose-project", text("project.import_source"), PluginIcon.ADD), PageAction("new", text("project.new"), PluginIcon.EDIT))))),
+        PageBlock.Group(text("toolchain"), listOf(PageBlock.Actions(listOf(PageAction("toolchains", text("toolchain.manage"), PluginIcon.SETTINGS, symbol = "inventory_2"))))),
+    ), ManagementList("native-projects", projects.map { projectHeader(it, opens = true) }, emptyText = text("project.empty")))
+
+    fun toolchains(toolchain: BuilderToolchain?, problem: String) = PluginPage("toolchains", text("toolchain.manage"), listOf(
         PageBlock.Group(text("toolchain"), listOf(PageBlock.Text(toolchain?.let { text("toolchain.ready", "name" to it.name, "languages" to it.languages.joinToString()) } ?: text("toolchain.missing")),
-            PageBlock.Actions(listOfNotNull(
-                PageAction("download-toolchain", text("toolchain.download"), PluginIcon.ADD).takeIf { toolchain == null },
+            PageBlock.Actions(listOf(
+                PageAction("download-toolchain", text("toolchain.download"), PluginIcon.ADD),
                 PageAction("choose-toolchain", text("toolchain.import"), PluginIcon.ADD))))),
-    ) + if (problem.isNotEmpty()) listOf(PageBlock.Notice(problem)) else emptyList(),
-        ManagementList("native-projects", projects.map { ManagementItem(it.id, it.name, it.languages.joinToString(), PluginIcon.TEXT,
-            symbol = (it.spec["icon"] as? JsonObject)?.get("symbol")?.jsonPrimitive?.content,
-            primaryAction = "project/${it.id}") }, emptyText = text("project.empty")))
+    ) + if (problem.isNotEmpty()) listOf(PageBlock.Notice(problem)) else emptyList())
     fun project(project: NativeProject) = PluginPage("project/${project.id}", project.name, listOf(
-        PageBlock.Group(text("project"), listOf(PageBlock.Text("${project.version} · ${project.languages.joinToString(" / ")}"),
+        PageBlock.Group(text("project"), listOf(
             PageBlock.Actions(listOf(PageAction("project-name/${project.id}", text("project.name"), PluginIcon.EDIT),
                 PageAction("project-icon/${project.id}", text("project.icon"), PluginIcon.IMAGE))),
             PageBlock.Actions(listOf(PageAction("files/${project.id}", text("project.files"), PluginIcon.MENU),
                 PageAction("build/${project.id}", text("build.start"), PluginIcon.ADD), PageAction("source-export/${project.id}", text("project.share_source"), PluginIcon.EXPORT),
                 PageAction("delete/${project.id}", text("project.delete"), PluginIcon.CLOSE))))),
-    ))
+    ), header = projectHeader(project))
     fun toolchain(toolchain: BuilderToolchain) = PluginPage("toolchain/${toolchain.token}", text("toolchain.import"), listOf(
         PageBlock.Group(toolchain.name, listOf(PageBlock.Text(text("toolchain.files", "count" to toolchain.files.size.toString(), "languages" to toolchain.languages.joinToString())),
             PageBlock.Notice(text("toolchain.review")))),

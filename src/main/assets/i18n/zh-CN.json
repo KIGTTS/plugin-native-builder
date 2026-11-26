@@ -80,6 +80,8 @@
   "template.greet": "问好",
   "template.greeting": "你好！",
   "template.tools": "工具",
+
+  "toolchain.manage": "资源包管理",
   "toolchain.download": "下载 Java 编译库",
   "toolchain.downloading": "正在下载与验证 Java 编译库",
   "project.icon": "Material 图标名称",
