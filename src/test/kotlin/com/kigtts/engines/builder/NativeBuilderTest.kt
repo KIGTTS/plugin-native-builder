@@ -46,7 +46,7 @@ class NativeBuilderTest {
         val dex = NativeCompiler(javaClass.classLoader!!, toolchain).compile(project, output, stages::add)
         assertTrue(dex.resolve("classes.dex").readBytes().take(3).toByteArray().contentEquals("dex".toByteArray()))
         assertEquals("build.dex", stages.last())
-        val archive = NativePackageWriter(storage).pack(project, dex)
+        val archive = NativePackageWriter(storage).pack(project, dex, broker = null, interactive = false)
         ZipFile(archive).use { zip ->
             fun bytes(path: String) = zip.getInputStream(zip.getEntry(path)).use { it.readBytes() }
             val raw = bytes("plugin.json")
@@ -97,7 +97,7 @@ class NativeBuilderTest {
             root.resolve("templates/$name").copyRecursively(imported)
             val store = NativeProjects(storage); val project = store.confirm(store.stage(imported))
             val dex = NativeCompiler(javaClass.classLoader!!, fixture(storage)).compile(project, storage.directory("tmp/build")) { }
-            assertTrue(NativePackageWriter(storage).pack(project, dex).isFile)
+            assertTrue(NativePackageWriter(storage).pack(project, dex, broker = null, interactive = false).isFile)
         }
     }
     @Test fun optionalProducedAndroidToolchainIsActuallyCompleteAndHashValid() {
@@ -106,7 +106,9 @@ class NativeBuilderTest {
         val imported = storage.file("imports/tools.kigtools").also { requireNotNull(it.parentFile).mkdirs(); file.copyTo(it) }
         val store = BuilderToolchains(storage); val staged = store.stage(imported)
         store.confirm(staged)
-        assertTrue(staged.dex.isNotEmpty()); assertEquals(setOf("java"), staged.languages)
+        assertTrue(staged.dex.isNotEmpty())
+        assertEquals(setOf("java", "kotlin"), staged.languages)
+        assertTrue(staged.isolated)
         assertEquals(staged.token, store.current()!!.token)
     }
 }

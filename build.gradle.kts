@@ -20,7 +20,7 @@ tasks.register<Sync>("collectDesktopToolchainInputs") {
     }.files) {
         include("ecj-*.jar", "kotlin-compiler-embeddable-*.jar", "kotlin-daemon-embeddable-*.jar", "kotlin-reflect-*.jar",
             "kotlin-stdlib-*.jar", "trove4j-*.jar", "kotlinx-coroutines-core-jvm-*.jar", "kotlinx-serialization-*-jvm-*.jar",
-            "annotations-*.jar", "plugin-api.jar", "d8.jar")
+            "annotations-*.jar", "stax-api-*.jar", "plugin-api.jar", "d8.jar")
     }
     into(layout.buildDirectory.dir("desktop-toolchain-inputs"))
 }
@@ -31,5 +31,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("org.eclipse.jdt:ecj:3.39.0")
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.2.21")
+    testImplementation("javax.xml.stream:stax-api:1.0-2")
     testImplementation(files(android.sdkDirectory.resolve("build-tools/36.0.0/lib/d8.jar")))
 }

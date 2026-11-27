@@ -45,10 +45,12 @@ internal class NativeBuilderPages(private val text: BuilderText) {
         PageBlock.Actions(listOf(PageAction("project-confirm/$token", text("project.save"), PluginIcon.ADD))),
     ))
     fun build(project: NativeProject, state: String, running: Boolean, ready: Boolean) = PluginPage("build/${project.id}", text("build"), listOf(
-        PageBlock.Group(project.name, listOf(PageBlock.Text(state))),
-        PageBlock.Actions(if (running) listOf(PageAction("cancel", text("build.cancel"), PluginIcon.CLOSE)) else if (ready)
-            listOf(PageAction("debug/${project.id}", text("build.debug"), PluginIcon.TEXT),
-                PageAction("share/${project.id}", text("build.share"), PluginIcon.EXPORT)) else
-            listOf(PageAction("build/${project.id}", text("build.retry"), PluginIcon.ADD))),
+        PageBlock.Group(project.name, listOf(PageBlock.Text(state),
+            PageBlock.Actions(when {
+                running -> listOf(PageAction("cancel", text("build.cancel"), PluginIcon.CLOSE))
+                ready -> listOf(PageAction("debug/${project.id}", text("build.debug"), PluginIcon.TEXT),
+                    PageAction("share/${project.id}", text("build.share"), PluginIcon.EXPORT))
+                else -> listOf(PageAction("build/${project.id}", text("build.retry"), PluginIcon.ADD))
+            }))),
     ))
 }

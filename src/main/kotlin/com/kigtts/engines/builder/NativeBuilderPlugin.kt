@@ -11,7 +11,7 @@ import java.util.zip.ZipOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 class NativeBuilderPlugin : KigPlugin {
-    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.8")
+    override val descriptor = PluginDescriptor("tools.native-builder", "原生构建扩展", "编译 Java 和 Kotlin 插件", "0.8.9")
     override val localization = PluginLocalization("zh-CN", listOf("zh-CN", "zh-CN-x-casual", "en", "ko", "ja"))
     private var strings = PluginStrings(emptyMap())
     private lateinit var environment: PluginEnvironment
@@ -255,7 +255,7 @@ class NativeBuilderPlugin : KigPlugin {
         update(project, text("build.preparing"), running = true, ready = false, text)
         build = scope.launch {
             try {
-                val selected = toolchain ?: run {
+                val selected = toolchain?.takeIf { it.supports(source) } ?: run {
                     update(project, text("toolchain.downloading"), running = true, ready = false, text)
                     OfficialNativeTools.install(environment, toolchains).also { toolchain = it }
                 }

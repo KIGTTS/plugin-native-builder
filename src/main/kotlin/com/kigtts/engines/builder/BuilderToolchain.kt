@@ -8,7 +8,9 @@ import java.util.UUID
 
 data class BuilderToolchain(val token: String, val name: String, val directory: File, val files: Map<String, String>,
     val dex: List<String>, val classpath: List<String>, val languages: Set<String>, val javaClass: String,
-    val kotlinClass: String, val d8Class: String, val manifestHash: String = "")
+    val kotlinClass: String, val d8Class: String, val manifestHash: String = "", val isolated: Boolean = false) {
+    fun supports(project: NativeProject): Boolean = languages.containsAll(project.languages.map { it.lowercase(java.util.Locale.ROOT) })
+}
 
 class BuilderToolchains(private val storage: PluginStorage) {
     fun stage(source: File): BuilderToolchain {
@@ -44,7 +46,8 @@ class BuilderToolchains(private val storage: PluginStorage) {
         fun type(key: String, default: String) = (obj[key]?.jsonPrimitive?.content ?: default).also { require(it.matches(Regex("[A-Za-z_][A-Za-z0-9_.]*"))) }
         return BuilderToolchain(token, obj.getValue("name").jsonPrimitive.content.take(160), directory, files, dex, classpath, languages,
             type("javaClass", "org.eclipse.jdt.core.compiler.batch.BatchCompiler"), type("kotlinClass", "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler"),
-            type("d8Class", "com.android.tools.r8.D8"), BuilderFiles.digest(manifest)).also(::verify)
+            type("d8Class", "com.android.tools.r8.D8"), BuilderFiles.digest(manifest),
+            obj["isolated"]?.jsonPrimitive?.booleanOrNull ?: false).also(::verify)
     }
     fun verify(toolchain: BuilderToolchain) {
         require(toolchain.manifestHash.isEmpty() || BuilderFiles.digest(toolchain.directory.resolve("toolchain.json")) == toolchain.manifestHash) { throw BuilderIssue("error.toolchain_changed") }
@@ -59,6 +62,6 @@ class BuilderToolchains(private val storage: PluginStorage) {
         val cache = storage.directory("tmp/toolchain-${toolchain.token}")
         toolchain.dex.forEach { require(BuilderFiles.relative(toolchain.directory, it).setReadOnly()) }
         return Class.forName("dalvik.system.DexClassLoader").getConstructor(String::class.java, String::class.java, String::class.java, ClassLoader::class.java)
-            .newInstance(dexPath, cache.absolutePath, null, parent) as ClassLoader
+            .newInstance(dexPath, cache.absolutePath, null, parent.takeUnless { toolchain.isolated }) as ClassLoader
     }
 }

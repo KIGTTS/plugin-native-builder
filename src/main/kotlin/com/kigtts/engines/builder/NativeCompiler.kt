@@ -30,8 +30,15 @@ class NativeCompiler(private val loader: ClassLoader, private val toolchain: Bui
                 val args = (listOf("-no-jdk", "-no-stdlib", "-no-reflect", "-jvm-target", "1.8", "-classpath", classpath, "-d", classes.absolutePath) + sources.map { it.absolutePath }).toTypedArray()
                 val method = type.methods.firstOrNull { it.name == "exec" && it.parameterTypes.contentEquals(arrayOf(PrintStream::class.java, Array<String>::class.java)) }
                     ?: throw BuilderIssue("error.kotlin_cli")
-                val result = method.invoke(instance, PrintStream(bytes, true, "UTF-8"), args)
-                diagnostic.write(bytes.toString("UTF-8")); require(result.toString() == "OK") { diagnostic.toString().takeLast(16000) }
+                val thread = Thread.currentThread()
+                val originalLoader = thread.contextClassLoader
+                val result = try {
+                    thread.contextClassLoader = loader
+                    PrintStream(bytes, true, "UTF-8").use { method.invoke(instance, it, args) }
+                } finally {
+                    thread.contextClassLoader = originalLoader
+                }
+                diagnostic.write(bytes.toString("UTF-8")); require(result?.toString() == "OK") { diagnostic.toString().takeLast(16000) }
             }
         }
         val java = sources.filter { it.extension == "java" }
